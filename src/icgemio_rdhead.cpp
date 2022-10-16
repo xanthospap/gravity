@@ -19,14 +19,14 @@ void dso::Icgem::print_details() {
   printf("R            : %15.10f\n", radius);
   printf("Max Degree   : %d\n", max_degree);
   printf("Data Details\n");
-  printf("Max degree static: %d\n", max_degree_static_start{0};
-  printf("Max degree static: %d\n", max_degree_static_stop{0};
-  printf("Max degree static: %d\n", max_order_static_start{0};
-  printf("Max degree static: %d\n", max_order_static_stop{0};
-  printf("Max degree static: %d\n", max_degree_tv_start{0};
-  printf("Max degree static: %d\n", max_degree_tv_stop{0};
-  printf("Max degree static: %d\n", max_order_tv_start{0};
-  printf("Max degree static: %d\n", max_order_tv_stop{0};
+  printf("Max degree static start: %d\n", max_degree_static_start);
+  printf("Max degree static stop : %d\n", max_degree_static_stop);
+  printf("Max order static start : %d\n", max_order_static_start);
+  printf("Max order static stop  : %d\n", max_order_static_stop);
+  printf("Max degree tvg start   : %d\n", max_degree_tv_start);
+  printf("Max degree tvg stop    : %d\n", max_degree_tv_stop);
+  printf("Max order  tvg start   : %d\n", max_order_tv_start);
+  printf("Max order  tvg stop    : %d\n", max_order_tv_stop);
   return;
 }
 #endif
