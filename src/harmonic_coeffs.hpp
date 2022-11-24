@@ -202,6 +202,41 @@ public:
 
 }; // HarmonicCoeffs
 
+class PeriodicCoeffs {
+  std::vector<double> _peryr;
+  HarmonicCoeffs *_data{nullptr};
+    
+    void allocate(int num_harmonics=0, int degree=0) noexcept {
+      deallocate();
+      if (num_harmonics && degree) {
+        _data = new HarmonicCoeffs[num_harmonics];
+        for (int i=0; i<num_harmonics; i++)
+          _data[i] = HarmonicCoeffs(degree);
+      }
+    }
+
+    void deallocate() noexcept {
+      if (_data) delete[] _data;
+    }
+
+public:
+  PeriodicCoeffs(int num_harmonics=0, int degree=0) : _nharmonics{num_harmonics},
+    _data((num_harmonics)?(new HarmonicCoeffs[num_harmonics]):(nullptr)) 
+    {
+      allocate(num_harmonics, degree);
+    }
+
+    int num_harmonics() const noexcept {return _peryr.size();}
+
+    void clear_harmonics() noexcept {_peryr.clear();}
+    void copy_harmonics(const std::vector<double> &other) noexcept {
+      _peryr = other;
+    }
+
+    void resize(int num_harmonics, int degree) noexcept;
+  
+}; // PeriodicCoeffs
+
 } // dso
 
 #endif

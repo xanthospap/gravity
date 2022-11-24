@@ -17,12 +17,14 @@ struct GravityField {
   bool _cnormalized{true};  ///< coefficients are normalized (?)
   dso::HarmonicCoeffs _static;
   dso::HarmonicCoeffs _tvg;
+  dso::PeriodicCoeffs _per;
 
   GravityField()
-      : _GM(0e0), _Re(0e0), _cnormalized(true), _static(), _tvg() {};
+      : _GM(0e0), _Re(0e0), _cnormalized(true), _static(), _tvg(), _per() {};
 
-  GravityField(double GM, double Re, int static_N=0, int tv_N=0)
-      : _GM(GM), _Re(Re), _cnormalized(true), _static(static_N),  _tvg(tv_N) {}
+  GravityField(double GM, double Re, int static_N=0, int tv_N=0, int harmonics_N=0)
+      : _GM(GM), _Re(Re), _cnormalized(true), _static(static_N),  _tvg(tv_N), 
+      _per(tv_N, harmonics_N){}
 
   double GM() const noexcept { return _GM; }
   double Re() const noexcept { return _Re; }
@@ -50,7 +52,7 @@ struct GravityField {
 /// @param[in] denormalize Denormalize coefficients (if normalized)
 /// @return Anything other than 0 denotes an error
 int parse_gravity_model(const char *model_fn, int degree, int order,
-                        dso::HarmonicCoeffs &harmonics,
+                        GravityField &gmodel,
                         bool denormalize = true) noexcept;
 
 /// @brief Computes the perturbational acceleration due to a point mass

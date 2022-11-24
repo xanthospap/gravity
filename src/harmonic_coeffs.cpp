@@ -34,6 +34,27 @@ void dso::HarmonicCoeffs::resize(int degree) noexcept {
     return;
 }
 
+void dso::PeriodicCoeffs::resize(int num_harmonics, int degree) noexcept {
+  assert(degree && num_harmonics);
+
+  if (num_harmonics == _nharmonics) {
+    for (int i=0; i<_nharmonics; i++)
+      _data[i].resize(degree);
+    
+  } else if (num_harmonics<_nharmonics) {
+      for (int i=0; i<num_harmonics; i++)
+         _data[i].resize(degree);
+      for (int i=num_harmonics; i<_nharmonics; i++)
+        _data[i].resize(0);
+  } else {
+    deallocate();
+    allocate(num_harmonics, degree);
+  }
+
+  _nharmonics = num_harmonics;
+  return;
+}
+
 dso::HarmonicCoeffs::HarmonicCoeffs(dso::HarmonicCoeffs &&h) noexcept {
   this->deallocate();
   this->m_degree = h.m_degree;

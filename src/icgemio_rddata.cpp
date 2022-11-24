@@ -28,9 +28,88 @@ std::size_t coeffs_nr(int l, int m) noexcept {
   return sum;
 }
 
+int parse_static_coefficients(std::ifstream &fin, int maxdegree, int maxorder, dso::HarmonicCoeffs *coeffs) noexcept {
+  char line[dso::Icgem::max_data_line];
+  char *start;
+  [[maybe_unused]]char *end;
+
+  #if defined(__GNUC__) && (__GNUC__ < 11)
+  // clear errno before we start reading ...
+  errno = 0;
+  #endif
+  int error = 0;
+
+  // start reading ....
+  fin.getline(line, dso::Icgem::max_data_line);
+  while (fin.good() && !error) {
+
+    // gfc lines are for static-gravity field (if L=0=M, no effect ...)
+    if (starts_with("gfc ", line)) {
+      // size of current line
+      const int sz = std::strlen(line);
+
+      // expecting columns: degree, order, Clm, Slm, [...]; note that it
+      // (seldom) happens that the doubles are written in fortran format ...
+      start = line + 4;
+      #if defined(__GNUC__) && (__GNUC__ < 11)
+      int ll = std::strtol(start, &end, 10);
+      if ((end == start) || errno) {
+      #else
+      int ll;
+      auto ccres = std::from_chars(skip_ws(start), line+sz, ll);
+      if (ccres.ec != std::errc{}) {
+      #endif
+        return 1;
+      }
+
+      #if defined(__GNUC__) && (__GNUC__ < 11)
+      start = end;
+      int mm = std::strtol(start, &end, 10);
+      if (end == start) {
+      #else
+      int mm;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, mm);
+      if (ccres.ec != std::errc{}) {
+      #endif
+        return 1;
+      }
+
+      if (ll<=maxdegree && mm<=maxorder) {
+      #if defined(__GNUC__) && (__GNUC__ < 11)
+      start = end;
+      coeffs->C(ll,mm) = std::strtod(start, &end);
+      if ((end == start) || errno) ++error;
+      start = end;
+      coeffs->S(ll,mm) = std::strtod(start, &end);
+      #else
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, coeffs->C(ll,mm));
+      if (ccres.ec != std::errc{})
+        ++error;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, coeffs->S(ll,mm));
+      if (ccres.ec != std::errc{})
+        ++error;
+      #endif
+      }
+
+    } // if (starts_with("gfc ", line))
+  }
+
+  if (!fin.good()) {
+    if (fin.eof()) {
+      fin.clear();
+    } else {
+      return 10;
+    }
+  }
+
+  if (error) return error;
+
+  return 0;
+}
+
 /// @warning coeffs should have already been initialized and allocated with
 ///          enough memmory to hold the (to-be-) parsed coefficients.
-int dso::Icgem::parse_data(int l, int m, dso::HarmonicCoeffs *coeffs) noexcept {
+int dso::Icgem::parse_data(int l, int m, dso::GravityField &grav) noexcept {
 
   int error = 0;
   if (l > max_degree || m > l) {
@@ -38,14 +117,6 @@ int dso::Icgem::parse_data(int l, int m, dso::HarmonicCoeffs *coeffs) noexcept {
         stderr,
         "[ERROR] Invalid degree/order given to data parse (traceback: %s)\n",
         __func__);
-    error = 1;
-  }
-
-  if (coeffs->degree() < l) {
-    fprintf(stderr,
-            "[ERROR] Cannot read harmonics of degree %d to HarmonicsCoeffs of "
-            "degree %d (traceback: %s)\n",
-            l, coeffs->degree(), __func__);
     error = 1;
   }
 

@@ -2,9 +2,14 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <vector>
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+#  include <charconv>
+#else
+#  include <cstdlib>
+#  include <cerrno>
+#endif 
 
 /// @brief Check if a given line (string) starts with a given pattern
 /// @param[in] pattern A null-terminated string, the pattern we search for
@@ -18,6 +23,11 @@ bool starts_with(const char *pattern, const char *line) noexcept {
   if (line)
     return !std::strncmp(pattern, line, std::strlen(pattern));
   return false;
+}
+
+const char *skip_ws(const char *str) noexcept {
+  while (*str && *str==' ') ++str;
+  return str;
 }
 } // namespace
 
@@ -46,30 +56,48 @@ int dso::Icgem::inspect_data() noexcept {
   fin.seekg(data_section_pos);
 
   // reset all member variables characterizing the model
-  max_degree_static_start = 0;
-  max_degree_static_stop = 0;
-  max_order_static_start = 0;
-  max_order_static_stop = 0;
-  max_degree_tv_start = 0;
-  max_degree_tv_stop = 0;
-  max_order_tv_start = 0;
-  max_order_tv_stop = 0;
+  degree_static_start = 0;
+  degree_static_stop = 0;
+  order_static_start = 0;
+  order_static_stop = 0;
+  degree_tv_start = 0;
+  degree_tv_stop = 0;
+  order_tv_start = 0;
+  order_tv_stop = 0;
+  // current degree(ll) and order(mm) of TVG (while parsing)
+  int tvg_ll(-1), tvg_mm(-1);
+  // clear out any harmonics
   harmonics.clear();
 
   char line[dso::Icgem::max_data_line];
-  char *start, *end;
+  char *start;
+  [[maybe_unused]]char *end;
+
+  #if defined(__GNUC__) && (__GNUC__ < 11)
+  // clear errno before we start reading ...
+  errno = 0;
+  #endif
 
   // start reading ....
   fin.getline(line, max_data_line);
   while (fin.good()) {
+
+    // size of current line
+    const int sz = std::strlen(line);
 
     // gfc lines are for static-gravity field (if L=0=M, no effect ...)
     if (starts_with("gfc ", line)) {
       // expecting columns: degree, order, Clm, Slm, [...]; note that it
       // (seldom) happens that the doubles are written in fortran format ...
       start = line + 4;
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       int ll = std::strtol(start, &end, 10);
-      if (end == start) {
+      if ((end == start) || errno) {
+      #else
+      int ll;
+      auto ccres = std::from_chars(skip_ws(start), line+sz, ll);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing degree parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -77,9 +105,15 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       start = end;
       int mm = std::strtol(start, &end, 10);
       if (end == start) {
+      #else
+      int mm;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, mm);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing order parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -87,21 +121,30 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
-      if (!max_degree_static_start && ll)
-        max_degree_static_start = ll;
-      if (ll > max_degree_static_stop)
-        max_degree_static_stop = ll;
-      if (!max_order_static_start && mm)
-        max_order_static_start = mm;
-      if (mm > max_order_static_stop)
-        max_order_static_stop = mm;
+      // check if we have a max static degree (start/stop)
+      if (!degree_static_start && ll)
+        degree_static_start = ll;
+      if (ll > degree_static_stop)
+        degree_static_stop = ll;
+      // check if we have a max static order (start/stop)
+      if (!order_static_start && mm)
+        order_static_start = mm;
+      if (mm > order_static_stop)
+        order_static_stop = mm;
 
+    // gfct lines are for tvg field (if L=0=M, no effect ...)
     } else if (starts_with("gfct", line)) {
-      // expecting columns: degree, order, Clm, Slm, [...]; note that it
-      // (seldom) happens that the doubles are written in fortran format ...
+      // expecting columns: degree, order, Clm, Slm, [...]; note that time is
+      // of no interest here
       start = line + 4;
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       int ll = std::strtol(start, &end, 10);
-      if (end == start) {
+      if ((end == start) || errno) {
+      #else
+      int ll;
+      auto ccres = std::from_chars(skip_ws(start), line+sz, ll);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing degree parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -109,9 +152,15 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       start = end;
       int mm = std::strtol(start, &end, 10);
       if (end == start) {
+      #else
+      int mm;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, mm);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing order parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -119,21 +168,34 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
-      if (!max_degree_tv_start && ll)
-        max_degree_tv_start = ll;
-      if (ll > max_degree_tv_stop)
-        max_degree_tv_stop = ll;
-      if (!max_order_tv_start && mm)
-        max_order_tv_start = mm;
-      if (mm > max_order_tv_stop)
-        max_order_tv_stop = mm;
+      // assign current ll/mm of tvg
+      tvg_ll = ll;
+      tvg_mm = mm;
 
+      // check if we have a max tvg degree (start/stop)
+      if (!degree_tv_start && ll)
+        degree_tv_start = ll;
+      if (ll > degree_tv_stop)
+        degree_tv_stop = ll;
+      // check if we have a max tvg order (start/stop)
+      if (!order_tv_start && mm)
+        order_tv_start = mm;
+      if (mm > order_tv_stop)
+        order_tv_stop = mm;
+
+    // trnd lines are for trend/drift (if L=0=M, no effect ...)
     } else if (starts_with("trnd", line)) {
       // expecting that this 'trnd' field should match the current degree and
       // order of the --already read-- TVG coefficients
       start = line + 4;
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       int ll = std::strtol(start, &end, 10);
-      if (end == start) {
+      if ((end == start) || errno) {
+      #else
+      int ll;
+      auto ccres = std::from_chars(skip_ws(start), line+sz, ll);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing degree parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -141,9 +203,15 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       start = end;
       int mm = std::strtol(start, &end, 10);
       if (end == start) {
+      #else
+      int mm;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, mm);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing order parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -151,27 +219,33 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
-      if ((ll != max_degree_tv_stop) || (mm != max_order_tv_stop)) {
+      if ((ll != tvg_ll) || (mm != tvg_mm)) {
         fprintf(stderr,
                 "[ERROR] Reading line of type \'trnd\' but order/degree do not "
-                "match with previous TVG coefficients read!\n");
+                "match with previous TVG coefficients read (%d,%d)!\n",
+                ll, mm);
         fprintf(stderr,
                 "[ERROR] Current TVG degree and order: %d/%d, icgem file: %s "
                 "(traceback: %s)\n",
-                max_degree_tv_stop, max_order_tv_stop, filename.c_str(),
-                __func__);
+                tvg_ll, tvg_mm, filename.c_str(), __func__);
         return 1;
       }
 
+    // acos/asin are for periodic terms
     } else if (starts_with("acos", line) || starts_with("asin", line)) {
       // expecting that this 'acos'/'asin' field should match the current
       // degree and order of the --already read-- TVG coefficients
       // example line:
       // acos   1    0  1.98940208316E-10  0.00000000000E+00 2.4920E-11
       // 0.0000E+00 19500101.0000 19930115.0546 1.0
-      start = line + 4;
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       int ll = std::strtol(start, &end, 10);
-      if (end == start) {
+      if ((end == start) || errno) {
+      #else
+      int ll;
+      auto ccres = std::from_chars(skip_ws(start), line+sz, ll);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing degree parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -179,9 +253,15 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
+      #if defined(__GNUC__) && (__GNUC__ < 11)
       start = end;
       int mm = std::strtol(start, &end, 10);
       if (end == start) {
+      #else
+      int mm;
+      ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, mm);
+      if (ccres.ec != std::errc{}) {
+      #endif
         fprintf(stderr,
                 "[ERROR] Failed parsing order parameter in line: [%s]; icgem "
                 "file %s (traceback: %s)\n",
@@ -192,10 +272,15 @@ int dso::Icgem::inspect_data() noexcept {
       // parse values untill period
       double yperiod;
       for (int i = 0; i < 7; i++) {
+        #if defined(__GNUC__) && (__GNUC__ < 11)
         start = end;
         yperiod = std::strtod(start, &end);
-        if (start == end)
+        if ((start == end) || errno)
           ++error;
+        #else
+        ccres = std::from_chars(skip_ws(ccres.ptr), line+sz, yperiod);
+        error += (ccres.ec != std::errc{});
+        #endif
       }
       if (error) {
         fprintf(stderr,
@@ -205,14 +290,14 @@ int dso::Icgem::inspect_data() noexcept {
         return 1;
       }
 
-      if ((ll != max_degree_tv_stop) || (mm != max_order_tv_stop)) {
+      if ((ll != tvg_ll) || (mm != tvg_mm)) {
         fprintf(stderr, "[ERROR] Reading line of type \'acos/asin\' but "
                         "order/degree do not "
                         "match with previous TVG coefficients read!\n");
         fprintf(stderr,
                 "[ERROR] Current TVG degree and order: %d/%d, icgem file: %s "
                 "(traceback: %s)\n",
-                max_degree_tv_stop, max_order_tv_stop, filename.c_str(),
+                tvg_ll, tvg_mm, filename.c_str(),
                 __func__);
         return 1;
       }

@@ -1,5 +1,9 @@
 namespace dso {
 
+/// @brief A compile time factorial table. Watch out for overflow
+/// @tparam T type of data for computation (e.g. double)
+/// @tparam N Max factorial to compute (e.g for N=5, we will have the values:
+///         0!,!1,2!,3!,4!,5!)
 template<typename T, int N>
 struct FactorialLookUpTable {
   T table[N+1] = {(T)1,(T)1};
